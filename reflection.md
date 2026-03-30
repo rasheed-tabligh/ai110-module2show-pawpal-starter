@@ -61,8 +61,11 @@ The key relationship is: Owner → Pet → Task (ownership chain), and Scheduler
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+Yes, the `Scheduler` class changed during implementation. In the original UML skeleton, the constructor took both an `Owner` and a single `Pet` — `Scheduler(owner, pet)`. This meant you would need a separate scheduler instance for every pet, which didn't make sense for an owner managing multiple animals.
+
+During implementation I realized the Scheduler should be responsible for the owner's entire day, not just one pet's tasks. I changed the constructor to `Scheduler(owner)` only, and added a `get_all_tasks()` helper that loops over every pet in `owner.get_pets()` and collects all their tasks into one list. The scheduler then sorts and schedules across that combined task list.
+
+This change made the `explain_plan()` output much more useful too — it can now show which pet each task belongs to, so the owner sees their whole day in one view rather than separate plans per pet.
 
 ---
 
