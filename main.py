@@ -19,8 +19,8 @@ def main():
     # ------------------------------------------------------------------ #
     # 1. Set up the owner
     # ------------------------------------------------------------------ #
-    jordan = Owner(
-        name="Jordan",
+    rashid = Owner(
+        name="Rashid",
         available_minutes_per_day=90,
         preferences=["morning walks", "no late medications"],
     )
@@ -28,28 +28,28 @@ def main():
     # ------------------------------------------------------------------ #
     # 2. Create two pets and register them with the owner
     # ------------------------------------------------------------------ #
-    mochi = Pet(name="Mochi", species="dog", age=3)
+    samii = Pet(name="Samii", species="dog", age=3)
     luna = Pet(name="Luna", species="cat", age=5, health_notes="Needs daily medication")
 
-    jordan.add_pet(mochi)
-    jordan.add_pet(luna)
+    rashid.add_pet(samii)
+    rashid.add_pet(luna)
 
     # ------------------------------------------------------------------ #
     # 3. Add tasks — intentionally out of time order to test sort_by_time
     #    Some tasks have a scheduled_time; some are flexible (no time set).
     #    Medication is marked "daily" recurring.
     # ------------------------------------------------------------------ #
-    mochi.add_task(Task(title="Evening walk",    duration_minutes=25, priority="medium", category="walk",        scheduled_time="17:00"))
-    mochi.add_task(Task(title="Morning walk",    duration_minutes=30, priority="high",   category="walk",        scheduled_time="07:30"))
-    mochi.add_task(Task(title="Breakfast",       duration_minutes=10, priority="high",   category="feeding",     scheduled_time="08:00"))
-    mochi.add_task(Task(title="Play fetch",      duration_minutes=20, priority="medium", category="enrichment"))
-    mochi.add_task(Task(title="Brush coat",      duration_minutes=15, priority="low",    category="grooming"))
+    samii.add_task(Task(title="Evening walk",    duration_minutes=25, priority="medium", category="walk",        scheduled_time="17:00"))
+    samii.add_task(Task(title="Morning walk",    duration_minutes=30, priority="high",   category="walk",        scheduled_time="07:30"))
+    samii.add_task(Task(title="Breakfast",       duration_minutes=10, priority="high",   category="feeding",     scheduled_time="08:00"))
+    samii.add_task(Task(title="Play fetch",      duration_minutes=20, priority="medium", category="enrichment"))
+    samii.add_task(Task(title="Brush coat",      duration_minutes=15, priority="low",    category="grooming"))
 
     luna.add_task(Task(title="Medication",       duration_minutes=5,  priority="high",   category="medication",  scheduled_time="08:30", recurrence="daily"))
     luna.add_task(Task(title="Feeding",          duration_minutes=10, priority="high",   category="feeding",     scheduled_time="08:15"))
     luna.add_task(Task(title="Laser toy session",duration_minutes=15, priority="low",    category="enrichment"))
 
-    scheduler = Scheduler(owner=jordan)
+    scheduler = Scheduler(owner=rashid)
 
     # ------------------------------------------------------------------ #
     # 4. Generate and display the priority-based daily schedule
@@ -71,8 +71,8 @@ def main():
     # ------------------------------------------------------------------ #
     # 6. Filter tasks by pet name
     # ------------------------------------------------------------------ #
-    section("Filter: Mochi's Tasks Only")
-    for task in scheduler.filter_tasks(pet_name="Mochi"):
+    section("Filter: Samii's Tasks Only")
+    for task in scheduler.filter_tasks(pet_name="Samii"):
         status = "done" if task.completed else "pending"
         print(f"  [{status}]  {task.title}")
 
@@ -99,7 +99,7 @@ def main():
     #    Expected: Scheduler flags the overlap without crashing
     # ------------------------------------------------------------------ #
     section("Conflict Detection")
-    # Add a task that deliberately clashes with Mochi's Breakfast (08:00, 10 min → ends 08:10)
+    # Add a task that deliberately clashes with Samii's Breakfast (08:00, 10 min → ends 08:10)
     conflicting = Task(
         title="Vet call",
         duration_minutes=20,
@@ -107,7 +107,7 @@ def main():
         category="other",
         scheduled_time="08:05",   # starts at 08:05 while Breakfast runs 08:00–08:10
     )
-    mochi.add_task(conflicting)
+    samii.add_task(conflicting)
 
     full_schedule = scheduler.generate_schedule()
     conflicts = scheduler.detect_conflicts(full_schedule)

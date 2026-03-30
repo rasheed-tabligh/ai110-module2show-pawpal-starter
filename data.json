@@ -1,0 +1,46 @@
+{
+  "name": "Jordan",
+  "available_minutes_per_day": 90,
+  "preferences": [],
+  "pets": [
+    {
+      "name": "Mochi",
+      "species": "dog",
+      "age": 3,
+      "health_notes": "",
+      "tasks": [
+        {
+          "title": "Morning walk",
+          "duration_minutes": 20,
+          "priority": "high",
+          "category": "walk",
+          "scheduled_time": "09:00",
+          "recurrence": "",
+          "due_date": "",
+          "completed": false
+        }
+      ]
+    },
+    {
+      "name": "Mochi",
+      "species": "dog",
+      "age": 3,
+      "health_notes": "",
+      "tasks": []
+    },
+    {
+      "name": "Mochi",
+      "species": "dog",
+      "age": 3,
+      "health_notes": "",
+      "tasks": []
+    },
+    {
+      "name": "Mochi",
+      "species": "dog",
+      "age": 3,
+      "health_notes": "medication",
+      "tasks": []
+    }
+  ]
+}

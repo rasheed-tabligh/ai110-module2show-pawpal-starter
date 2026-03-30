@@ -65,7 +65,7 @@ existing_owner = st.session_state.owner
 with st.form("owner_form"):
     owner_name = st.text_input(
         "Your name",
-        value=existing_owner.name if existing_owner else "Jordan",
+        value=existing_owner.name if existing_owner else "Rashid",
     )
     available_mins = st.number_input(
         "Available minutes per day",
@@ -101,7 +101,7 @@ st.subheader("2. Your Pets")
 with st.form("add_pet_form"):
     col1, col2, col3 = st.columns(3)
     with col1:
-        pet_name = st.text_input("Pet name", value="Mochi")
+        pet_name = st.text_input("Pet name", value="Samii")
     with col2:
         species = st.selectbox("Species", ["dog", "cat", "other"])
     with col3:
