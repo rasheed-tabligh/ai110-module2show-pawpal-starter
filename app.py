@@ -102,6 +102,7 @@ else:
         with col1:
             task_title = st.text_input("Task title", value="Morning walk")
             duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
+            task_time = st.text_input("Scheduled time (optional)", placeholder="e.g. 08:30")
         with col2:
             selected_pet_name = st.selectbox("Assign to pet", pet_names)
             priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
@@ -109,9 +110,15 @@ else:
                 "Category",
                 ["walk", "feeding", "medication", "grooming", "enrichment", "other"],
             )
+            recurrence_input = st.selectbox("Recurrence", ["none", "daily", "weekly"])
         add_task_btn = st.form_submit_button("Add Task")
 
     if add_task_btn:
+        raw_time = task_time.strip()
+        # Accept "HH:MM" format or empty — warn and discard if format is wrong
+        if raw_time and not (len(raw_time) == 5 and raw_time[2] == ":"):
+            st.warning(f"'{raw_time}' is not a valid time — use HH:MM (e.g. 08:30). Time was not saved.")
+            raw_time = ""
         target_pet = next(p for p in pets if p.name == selected_pet_name)
         target_pet.add_task(
             Task(
@@ -119,6 +126,8 @@ else:
                 duration_minutes=int(duration),
                 priority=priority,
                 category=category,
+                scheduled_time=raw_time,
+                recurrence="" if recurrence_input == "none" else recurrence_input,
             )
         )
         st.success(f"**{task_title}** added to {selected_pet_name}!")
@@ -131,9 +140,11 @@ else:
                 {
                     "Pet": pet.name,
                     "Task": task.title,
+                    "Time": task.scheduled_time or "—",
                     "Duration (min)": task.duration_minutes,
                     "Priority": task.priority,
                     "Category": task.category,
+                    "Recurrence": task.recurrence or "—",
                     "Done": "✓" if task.completed else "",
                 }
             )
@@ -158,10 +169,53 @@ if st.button("Generate Schedule", type="primary", disabled=total_tasks == 0):
     schedule = scheduler.generate_schedule()
 
     if not schedule:
-        st.warning("No tasks could be scheduled. Check that tasks aren't all marked complete or exceed your time budget.")
+        st.warning(
+            "No tasks could be scheduled. "
+            "Check that tasks aren't all marked complete or that each task fits within your time budget."
+        )
     else:
-        st.success(f"Scheduled **{len(schedule)}** task(s) out of {total_tasks} total.")
-        st.code(scheduler.explain_plan(schedule), language=None)
+        # ---- Conflict warnings ----------------------------------------
+        conflicts = scheduler.detect_conflicts(schedule)
+        if conflicts:
+            st.markdown("**Schedule Conflicts Detected**")
+            for warning in conflicts:
+                st.warning(warning)
+
+        # ---- Success summary -----------------------------------------
+        time_used = sum(t.duration_minutes for t in schedule)
+        st.success(
+            f"Scheduled **{len(schedule)}** task(s) — "
+            f"**{time_used}** of **{owner.available_minutes_per_day}** min used."
+        )
+
+        # ---- Schedule table sorted by wall-clock time ----------------
+        timed_schedule = scheduler.sort_by_time(schedule)
+        task_pet_map = {
+            id(t): p.name
+            for p in owner.get_pets()
+            for t in p.get_tasks()
+        }
+        schedule_rows = [
+            {
+                "Time": t.scheduled_time or "flexible",
+                "Task": t.title,
+                "Duration (min)": t.duration_minutes,
+                "Priority": t.priority,
+                "Pet": task_pet_map.get(id(t), "?"),
+                "Category": t.category,
+            }
+            for t in timed_schedule
+        ]
+        st.dataframe(schedule_rows, use_container_width=True, hide_index=True)
+
+        # ---- Skipped tasks -------------------------------------------
+        all_incomplete = [t for t in scheduler.get_all_tasks() if not t.completed]
+        scheduled_ids = {id(t) for t in schedule}
+        skipped = [t for t in all_incomplete if id(t) not in scheduled_ids]
+        if skipped:
+            with st.expander(f"Skipped tasks ({len(skipped)}) — not enough time remaining"):
+                for t in skipped:
+                    st.caption(f"• {t.title} ({t.duration_minutes} min | {t.priority})")
 
 if total_tasks == 0:
     st.info("Add tasks in Section 3 to enable scheduling.")
