@@ -79,6 +79,35 @@ Beyond the basic priority-based scheduler, PawPal+ includes several algorithmic 
 
 **Conflict detection** — `Scheduler.detect_conflicts(schedule)` checks every pair of timed tasks for overlapping intervals using the condition `start_a < end_b and start_b < end_a`. It returns a list of plain-English warning strings instead of raising an exception, so the app stays usable even when the schedule has problems.
 
+## Optional Extensions
+
+### Challenge 1 — Find Next Available Slot
+
+`Scheduler.find_next_slot(duration_minutes, after_time)` scans the current timed schedule and returns the earliest `"HH:MM"` where a task of the requested duration would fit without conflicting with anything already booked. Returns `None` if no gap exists before midnight.
+
+**Algorithm:** Build a sorted list of `(start, end)` pairs from all timed tasks, then walk a `cursor` forward. Each iteration checks if the gap between the cursor and the next block is wide enough. If yes, return `_minutes_to_time(cursor)`. If no, jump the cursor to the end of that block and continue. After all blocks, check the tail of the day.
+
+This was designed with AI in agent mode: I described the scan-and-jump pattern in plain English and asked for a Python implementation, then traced through three edge cases manually (gap before first task, gap between two tasks, no gap found) to verify the logic before accepting it.
+
+### Challenge 2 — Data Persistence
+
+Every class now has `to_dict()` / `from_dict()` methods so the full owner profile (pets + all tasks) can be serialized to plain JSON. `Owner.save_to_json(filepath)` and `Owner.load_from_json(filepath)` handle the file I/O.
+
+`app.py` automatically calls `save_to_json("data.json")` after every mutation (save owner, add pet, add task). On startup it checks whether `data.json` exists and restores from it if so — meaning the app remembers everything between browser refreshes and terminal restarts.
+
+### Challenge 4 — Emoji Labels
+
+Priority and category fields are displayed with emoji badges throughout the UI:
+
+| Priority | Emoji | Category | Emoji |
+|---|---|---|---|
+| high | 🔴 | walk | 🦮 |
+| medium | 🟡 | feeding | 🍽️ |
+| low | 🟢 | medication | 💊 |
+| | | grooming | ✂️ |
+| | | enrichment | 🎾 |
+| | | other | 📋 |
+
 ## Testing PawPal+
 
 Run the full test suite with:
@@ -93,7 +122,7 @@ Or for a detailed view of each test name:
 python -m pytest tests/ -v
 ```
 
-The suite lives in `tests/test_pawpal.py` and currently contains **21 tests** covering:
+The suite lives in `tests/test_pawpal.py` and currently contains **27 tests** covering:
 
 | Area | What's tested |
 |---|---|
@@ -104,6 +133,8 @@ The suite lives in `tests/test_pawpal.py` and currently contains **21 tests** co
 | Filtering | By pet name; by completion status |
 | Recurring tasks | Daily → next occurrence in 1 day; weekly → 7 days; non-recurring → returns `None` |
 | Conflict detection | Overlapping tasks flagged; exact same start time flagged; back-to-back tasks not flagged; tasks with no time ignored |
+| JSON persistence | Task/Pet/Owner round-trip via `to_dict`/`from_dict`; completed status preserved across save/load |
+| Find next slot | Gap before first task; skips occupied windows correctly; returns `None` when day is full |
 
 **Confidence level: ★★★★☆ (4/5)**
 

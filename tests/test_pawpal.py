@@ -5,6 +5,8 @@ Run with:
     python -m pytest
 """
 
+import os
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -336,3 +338,112 @@ def test_detect_conflicts_ignores_tasks_without_scheduled_time():
 
     warnings = Scheduler(owner=owner).detect_conflicts([t1, t2])
     assert warnings == []
+
+
+# ================================================================== #
+# JSON persistence (to_dict / from_dict / save_to_json / load_from_json)
+# ================================================================== #
+
+def test_task_to_dict_and_from_dict_round_trip():
+    """Serializing a Task to dict and back should produce an identical object."""
+    original = Task(
+        title="Medication", duration_minutes=5, priority="high",
+        category="medication", scheduled_time="08:00", recurrence="daily",
+    )
+    restored = Task.from_dict(original.to_dict())
+    assert restored.title == original.title
+    assert restored.duration_minutes == original.duration_minutes
+    assert restored.scheduled_time == original.scheduled_time
+    assert restored.recurrence == original.recurrence
+    assert restored.completed == original.completed
+
+
+def test_owner_save_and_load_json_preserves_all_data():
+    """Saving an Owner to JSON and reloading it should preserve all pets and tasks."""
+    owner = Owner(name="Jordan", available_minutes_per_day=90)
+    pet = Pet(name="Mochi", species="dog", age=3, health_notes="loves walks")
+    pet.add_task(
+        Task(title="Walk", duration_minutes=30, priority="high",
+             category="walk", scheduled_time="07:30", recurrence="daily")
+    )
+    owner.add_pet(pet)
+
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        filepath = f.name
+    try:
+        owner.save_to_json(filepath)
+        loaded = Owner.load_from_json(filepath)
+
+        assert loaded.name == "Jordan"
+        assert loaded.available_minutes_per_day == 90
+        assert len(loaded.get_pets()) == 1
+        loaded_pet = loaded.get_pets()[0]
+        assert loaded_pet.name == "Mochi"
+        assert loaded_pet.health_notes == "loves walks"
+        assert len(loaded_pet.get_tasks()) == 1
+        loaded_task = loaded_pet.get_tasks()[0]
+        assert loaded_task.title == "Walk"
+        assert loaded_task.scheduled_time == "07:30"
+        assert loaded_task.recurrence == "daily"
+    finally:
+        os.unlink(filepath)
+
+
+def test_owner_load_from_json_restores_completed_status():
+    """A completed task should still be marked complete after a save/load cycle."""
+    owner = Owner(name="Jordan", available_minutes_per_day=90)
+    pet = make_pet()
+    task = Task(title="Walk", duration_minutes=30, priority="high", category="walk")
+    task.mark_complete()
+    pet.add_task(task)
+    owner.add_pet(pet)
+
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        filepath = f.name
+    try:
+        owner.save_to_json(filepath)
+        loaded = Owner.load_from_json(filepath)
+        assert loaded.get_pets()[0].get_tasks()[0].completed is True
+    finally:
+        os.unlink(filepath)
+
+
+# ================================================================== #
+# Scheduler — find_next_slot
+# ================================================================== #
+
+def test_find_next_slot_returns_early_gap_before_first_task():
+    """If the first timed task starts late, the slot before it should be found."""
+    owner = make_owner()
+    pet = make_pet()
+    pet.add_task(Task(title="Walk", duration_minutes=30, priority="high", category="walk", scheduled_time="10:00"))
+    owner.add_pet(pet)
+
+    slot = Scheduler(owner=owner).find_next_slot(20, after_time="00:00")
+    assert slot == "00:00"   # huge gap before 10:00
+
+
+def test_find_next_slot_skips_occupied_windows():
+    """The slot finder should skip over occupied time windows and find the next gap."""
+    owner = make_owner(minutes=120)
+    pet = make_pet()
+    # Occupied: 08:00–08:30 and 08:30–08:40
+    pet.add_task(Task(title="Walk",    duration_minutes=30, priority="high", category="walk",    scheduled_time="08:00"))
+    pet.add_task(Task(title="Feeding", duration_minutes=10, priority="high", category="feeding", scheduled_time="08:30"))
+    owner.add_pet(pet)
+
+    # Looking for a 20-min slot after 08:00 — first gap is at 08:40
+    slot = Scheduler(owner=owner).find_next_slot(20, after_time="08:00")
+    assert slot == "08:40"
+
+
+def test_find_next_slot_returns_none_when_day_is_full():
+    """If the occupied windows run all the way to midnight, return None."""
+    owner = make_owner(minutes=1440)
+    pet = make_pet()
+    # One task that runs from 00:00 to 23:59 (1439 min)
+    pet.add_task(Task(title="Marathon", duration_minutes=1439, priority="high", category="other", scheduled_time="00:00"))
+    owner.add_pet(pet)
+
+    slot = Scheduler(owner=owner).find_next_slot(5, after_time="00:00")
+    assert slot is None

@@ -4,6 +4,7 @@ Classes: Owner, Pet, Task, Scheduler
 Designed from UML (see reflection.md for diagram).
 """
 
+import json
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -25,6 +26,33 @@ class Task:
         """Mark this task as done."""
         self.completed = True
 
+    def to_dict(self) -> dict:
+        """Serialize this task to a plain dictionary (for JSON storage)."""
+        return {
+            "title": self.title,
+            "duration_minutes": self.duration_minutes,
+            "priority": self.priority,
+            "category": self.category,
+            "scheduled_time": self.scheduled_time,
+            "recurrence": self.recurrence,
+            "due_date": self.due_date,
+            "completed": self.completed,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Task":
+        """Reconstruct a Task from a dictionary produced by to_dict()."""
+        return cls(
+            title=data["title"],
+            duration_minutes=data["duration_minutes"],
+            priority=data["priority"],
+            category=data["category"],
+            scheduled_time=data.get("scheduled_time", ""),
+            recurrence=data.get("recurrence", ""),
+            due_date=data.get("due_date", ""),
+            completed=data.get("completed", False),
+        )
+
 
 @dataclass
 class Pet:
@@ -44,6 +72,29 @@ class Pet:
         """Return all tasks assigned to this pet."""
         return list(self._tasks)
 
+    def to_dict(self) -> dict:
+        """Serialize this pet (and its tasks) to a plain dictionary."""
+        return {
+            "name": self.name,
+            "species": self.species,
+            "age": self.age,
+            "health_notes": self.health_notes,
+            "tasks": [t.to_dict() for t in self._tasks],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Pet":
+        """Reconstruct a Pet (and its tasks) from a dictionary produced by to_dict()."""
+        pet = cls(
+            name=data["name"],
+            species=data["species"],
+            age=data["age"],
+            health_notes=data.get("health_notes", ""),
+        )
+        for task_data in data.get("tasks", []):
+            pet.add_task(Task.from_dict(task_data))
+        return pet
+
 
 @dataclass
 class Owner:
@@ -61,6 +112,39 @@ class Owner:
     def get_pets(self) -> list[Pet]:
         """Return all pets belonging to this owner."""
         return list(self._pets)
+
+    def to_dict(self) -> dict:
+        """Serialize this owner (and all pets and tasks) to a plain dictionary."""
+        return {
+            "name": self.name,
+            "available_minutes_per_day": self.available_minutes_per_day,
+            "preferences": self.preferences,
+            "pets": [p.to_dict() for p in self._pets],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Owner":
+        """Reconstruct an Owner (with all pets and tasks) from a dictionary."""
+        owner = cls(
+            name=data["name"],
+            available_minutes_per_day=data["available_minutes_per_day"],
+            preferences=data.get("preferences", []),
+        )
+        for pet_data in data.get("pets", []):
+            owner.add_pet(Pet.from_dict(pet_data))
+        return owner
+
+    def save_to_json(self, filepath: str = "data.json") -> None:
+        """Write the full owner profile (pets + tasks) to a JSON file."""
+        with open(filepath, "w") as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def load_from_json(cls, filepath: str = "data.json") -> "Owner":
+        """Load and reconstruct an Owner from a previously saved JSON file."""
+        with open(filepath) as f:
+            data = json.load(f)
+        return cls.from_dict(data)
 
 
 class Scheduler:
@@ -108,6 +192,11 @@ class Scheduler:
             return 9999
         h, m = time_str.split(":")
         return int(h) * 60 + int(m)
+
+    @staticmethod
+    def _minutes_to_time(minutes: int) -> str:
+        """Convert minutes since midnight back to an 'HH:MM' string."""
+        return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
     # ------------------------------------------------------------------
     # Public API
@@ -279,6 +368,55 @@ class Scheduler:
                 )
 
         return "\n".join(lines)
+
+    def find_next_slot(self, duration_minutes: int, after_time: str = "00:00") -> str | None:
+        """
+        Find the earliest gap in the current timed schedule where a task of
+        the given duration would fit without overlapping anything.
+
+        Algorithm: sort all timed tasks by start time, then scan forward with
+        a 'cursor' that advances past each occupied window. The first position
+        where (cursor + duration) fits before the next task's start is returned.
+        Returns None if no gap exists before midnight.
+
+        Only tasks that have a scheduled_time are treated as fixed; flexible
+        (untimed) tasks are invisible to this method — they don't block slots.
+        """
+        schedule = self.generate_schedule()
+
+        # Build sorted list of (start, end) for every timed task in the schedule
+        occupied = sorted(
+            [
+                (
+                    self._time_to_minutes(t.scheduled_time),
+                    self._time_to_minutes(t.scheduled_time) + t.duration_minutes,
+                )
+                for t in schedule
+                if t.scheduled_time
+            ],
+            key=lambda x: x[0],
+        )
+
+        cursor = self._time_to_minutes(after_time)
+        end_of_day = 24 * 60  # 1440 minutes
+
+        for task_start, task_end in occupied:
+            if task_start < cursor:
+                # This block is before the cursor, but it might still push us forward
+                if task_end > cursor:
+                    cursor = task_end
+                continue
+            # There is a gap between cursor and the next block — check if it fits
+            if task_start - cursor >= duration_minutes:
+                return self._minutes_to_time(cursor)
+            # Gap too small — jump past this block
+            cursor = task_end
+
+        # Check the remaining time after the last occupied block
+        if end_of_day - cursor >= duration_minutes:
+            return self._minutes_to_time(cursor)
+
+        return None
 
     def filter_by_priority(self, min_priority: str) -> list[Task]:
         """
