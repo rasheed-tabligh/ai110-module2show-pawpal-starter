@@ -17,15 +17,15 @@
 
 **Owner setup and pet registration:**
 
-![Owner Setup and Pets](Final%20UI%201.png)
+![Owner Setup and Pets](New%20Updated%20UI%201.png)
 
 **Adding care tasks with scheduled time and recurrence:**
 
-![Care Tasks Form](Final%20UI%202.png)
+![Care Tasks Form](New%20Updated%20UI%202.png)
 
-**Generated daily schedule with conflict detection and skipped tasks:**
+**Generated daily schedule with emoji labels and Find Next Slot tool:**
 
-![Daily Schedule](Final%20UI%203.png)
+![Daily Schedule](New%20Updated%20UI%203.png)
 
 ## Scenario
 

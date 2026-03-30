@@ -8,6 +8,24 @@
       "species": "dog",
       "age": 3,
       "health_notes": "",
+      "tasks": [
+        {
+          "title": "Morning walk",
+          "duration_minutes": 20,
+          "priority": "high",
+          "category": "walk",
+          "scheduled_time": "09:00",
+          "recurrence": "daily",
+          "due_date": "",
+          "completed": false
+        }
+      ]
+    },
+    {
+      "name": "Samii",
+      "species": "dog",
+      "age": 3,
+      "health_notes": "needs medications",
       "tasks": []
     }
   ]
