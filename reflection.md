@@ -73,13 +73,19 @@ This change made the `explain_plan()` output much more useful too — it can now
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+The scheduler considers two main constraints:
+
+1. **Time budget** — `owner.available_minutes_per_day` is a hard cap. No task is added to the schedule if it would push the total over that limit. This felt like the most important constraint to get right first, because the app is useless if it produces a plan the owner literally cannot complete in a day.
+
+2. **Task priority** — Tasks are ranked high (3) > medium (2) > low (1) and sorted before the greedy selection loop. This means high-priority tasks always get picked before lower ones, even if a low-priority task would technically "fit" in the remaining time first.
+
+I decided priority matters more than time-of-day ordering because an owner should always do the most important things (medication, feeding) before optional ones (grooming, enrichment), regardless of when they happen. Sorting by wall-clock time comes after scheduling, as a display step.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+The conflict detection only checks tasks that have a `scheduled_time` set, and it uses exact interval math — two tasks conflict only if their time windows literally overlap. It does not try to resolve conflicts or suggest alternative times; it just warns.
+
+This is a reasonable tradeoff for this use case because most pet care tasks are flexible in practice (you can move a walk 10 minutes without consequence). Returning a warning string rather than blocking the schedule means the owner still sees a usable plan and can decide whether the overlap actually matters. A hard block or auto-rescheduling system would be more complex and could produce worse plans in edge cases where the owner intentionally books overlapping tasks across pets handled by different people.
 
 ---
 

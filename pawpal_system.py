@@ -5,6 +5,7 @@ Designed from UML (see reflection.md for diagram).
 """
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 
 
 @dataclass
@@ -13,8 +14,11 @@ class Task:
 
     title: str
     duration_minutes: int
-    priority: str   # "low" | "medium" | "high"
-    category: str   # "walk" | "feeding" | "medication" | "grooming" | "enrichment" | "other"
+    priority: str       # "low" | "medium" | "high"
+    category: str       # "walk" | "feeding" | "medication" | "grooming" | "enrichment" | "other"
+    scheduled_time: str = ""   # optional wall-clock start time in "HH:MM" format
+    recurrence: str = ""       # "" | "daily" | "weekly"
+    due_date: str = ""         # optional "YYYY-MM-DD" used by recurring tasks
     completed: bool = False
 
     def mark_complete(self) -> None:
@@ -65,6 +69,8 @@ class Scheduler:
 
     Collects tasks from ALL of the owner's pets, sorts them by priority,
     and greedily builds a daily plan that fits within the owner's time budget.
+    Supports time-based sorting, status/pet filtering, recurring tasks,
+    and lightweight conflict detection.
     """
 
     # Maps priority label to a numeric rank for sorting.
@@ -91,6 +97,17 @@ class Scheduler:
             for task in pet.get_tasks():
                 mapping[id(task)] = pet.name
         return mapping
+
+    @staticmethod
+    def _time_to_minutes(time_str: str) -> int:
+        """
+        Convert an 'HH:MM' string to minutes since midnight.
+        Returns 9999 for tasks with no scheduled_time so they sort to the end.
+        """
+        if not time_str:
+            return 9999
+        h, m = time_str.split(":")
+        return int(h) * 60 + int(m)
 
     # ------------------------------------------------------------------
     # Public API
@@ -120,6 +137,103 @@ class Scheduler:
 
         return schedule
 
+    def sort_by_time(self, tasks: list[Task]) -> list[Task]:
+        """
+        Sort a list of tasks by their scheduled_time (HH:MM) in ascending order.
+
+        Uses a lambda with _time_to_minutes as the sort key so that "08:00" < "10:30".
+        Tasks with no scheduled_time are pushed to the end (key returns 9999).
+        """
+        return sorted(tasks, key=lambda t: self._time_to_minutes(t.scheduled_time))
+
+    def filter_tasks(
+        self,
+        pet_name: str | None = None,
+        completed: bool | None = None,
+    ) -> list[Task]:
+        """
+        Filter tasks across all pets by pet name and/or completion status.
+
+        Pass pet_name to see only one pet's tasks.
+        Pass completed=True/False to filter by done/pending.
+        Passing neither returns everything (same as get_all_tasks).
+        """
+        results = []
+        for pet in self.owner.get_pets():
+            if pet_name is not None and pet.name != pet_name:
+                continue
+            for task in pet.get_tasks():
+                if completed is not None and task.completed != completed:
+                    continue
+                results.append(task)
+        return results
+
+    def complete_task(self, task: Task, pet: Pet) -> Task | None:
+        """
+        Mark a task complete and, if it recurs, auto-create the next occurrence.
+
+        For a 'daily' task the next due_date is today + 1 day (timedelta(days=1)).
+        For a 'weekly' task it is today + 7 days (timedelta(weeks=1)).
+        The new Task is added directly to the same pet and returned so the caller
+        can display it. Returns None for non-recurring tasks.
+        """
+        task.mark_complete()
+        if not task.recurrence:
+            return None
+
+        today = date.today()
+        if task.recurrence == "daily":
+            next_date = today + timedelta(days=1)
+        elif task.recurrence == "weekly":
+            next_date = today + timedelta(weeks=1)
+        else:
+            return None
+
+        next_task = Task(
+            title=task.title,
+            duration_minutes=task.duration_minutes,
+            priority=task.priority,
+            category=task.category,
+            scheduled_time=task.scheduled_time,
+            recurrence=task.recurrence,
+            due_date=str(next_date),
+        )
+        pet.add_task(next_task)
+        return next_task
+
+    def detect_conflicts(self, schedule: list[Task]) -> list[str]:
+        """
+        Check for overlapping tasks in the schedule and return warning strings.
+
+        Only tasks with a scheduled_time are checked. Two tasks conflict when
+        one starts before the other finishes: start_a < end_b AND start_b < end_a.
+        Returns an empty list if no conflicts are found — it never raises an exception,
+        so the app keeps running even when the schedule has problems.
+        """
+        # Build (task, start_minutes, end_minutes) for every timed task
+        timed = [
+            (
+                t,
+                self._time_to_minutes(t.scheduled_time),
+                self._time_to_minutes(t.scheduled_time) + t.duration_minutes,
+            )
+            for t in schedule
+            if t.scheduled_time
+        ]
+
+        warnings = []
+        for i in range(len(timed)):
+            for j in range(i + 1, len(timed)):
+                task_a, start_a, end_a = timed[i]
+                task_b, start_b, end_b = timed[j]
+                if start_a < end_b and start_b < end_a:
+                    warnings.append(
+                        f"Conflict: '{task_a.title}' ({task_a.scheduled_time}, "
+                        f"{task_a.duration_minutes} min) overlaps with "
+                        f"'{task_b.title}' ({task_b.scheduled_time}, {task_b.duration_minutes} min)"
+                    )
+        return warnings
+
     def explain_plan(self, schedule: list[Task]) -> str:
         """
         Return a readable summary of the schedule: what was included (with start times)
@@ -143,8 +257,9 @@ class Scheduler:
         time_used = 0
         for task in schedule:
             pet_label = task_pet.get(id(task), "?")
+            time_tag = f" @ {task.scheduled_time}" if task.scheduled_time else ""
             lines.append(
-                f"  [{time_used:>3} min]  {task.title}"
+                f"  [{time_used:>3} min]  {task.title}{time_tag}"
                 f"  ({task.duration_minutes} min | {task.priority} | {pet_label})"
             )
             time_used += task.duration_minutes
