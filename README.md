@@ -53,3 +53,33 @@ Beyond the basic priority-based scheduler, PawPal+ includes several algorithmic 
 **Recurring tasks** — `Task` now has a `recurrence` field (`"daily"` or `"weekly"`). Calling `Scheduler.complete_task(task, pet)` marks the task done and uses Python's `timedelta` to calculate the next due date, then automatically creates a fresh copy of the task and attaches it to the same pet.
 
 **Conflict detection** — `Scheduler.detect_conflicts(schedule)` checks every pair of timed tasks for overlapping intervals using the condition `start_a < end_b and start_b < end_a`. It returns a list of plain-English warning strings instead of raising an exception, so the app stays usable even when the schedule has problems.
+
+## Testing PawPal+
+
+Run the full test suite with:
+
+```bash
+python -m pytest
+```
+
+Or for a detailed view of each test name:
+
+```bash
+python -m pytest tests/ -v
+```
+
+The suite lives in `tests/test_pawpal.py` and currently contains **21 tests** covering:
+
+| Area | What's tested |
+|---|---|
+| Task | `mark_complete()` changes status; new tasks start incomplete |
+| Pet | Adding tasks increases count; `get_tasks()` returns a copy, not a reference |
+| Schedule generation | Respects time budget; skips completed tasks; orders by priority; handles empty pets/owners |
+| Sort by time | Correct chronological order; untimed tasks go last |
+| Filtering | By pet name; by completion status |
+| Recurring tasks | Daily → next occurrence in 1 day; weekly → 7 days; non-recurring → returns `None` |
+| Conflict detection | Overlapping tasks flagged; exact same start time flagged; back-to-back tasks not flagged; tasks with no time ignored |
+
+**Confidence level: ★★★★☆ (4/5)**
+
+The core scheduling logic — priority ordering, time budgeting, recurrence, and conflict detection — is thoroughly tested. The one gap is the Streamlit UI layer (`app.py`), which isn't covered by automated tests. Session state behavior and form interactions would need end-to-end testing tools (like Playwright or Streamlit's own testing utilities) to verify fully.
