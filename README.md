@@ -15,9 +15,17 @@
 
 ## 📸 Demo
 
-> _Add a screenshot of your running Streamlit app here._
->
-> `streamlit run app.py` — then capture the UI and place the image in this folder.
+**Owner setup and pet registration:**
+
+![Owner Setup and Pets](Final%20UI%201.png)
+
+**Adding care tasks with scheduled time and recurrence:**
+
+![Care Tasks Form](Final%20UI%202.png)
+
+**Generated daily schedule with conflict detection and skipped tasks:**
+
+![Daily Schedule](Final%20UI%203.png)
 
 ## Scenario
 
